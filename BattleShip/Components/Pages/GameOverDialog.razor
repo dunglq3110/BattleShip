@@ -1,5 +1,41 @@
-<h3>GameOverDialog</h3>
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-4">
+            @(Winner == "Player" ? "🎉 Victory! 🎉" : "💀 Defeat 💀")
+        </MudText>
+        <MudText Typo="Typo.h6" Align="Align.Center" Class="mb-2">
+            Winner: @Winner
+        </MudText>
+        <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-4">
+            Turns Played: @Turns
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Rematch">
+            Re-match
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="ReturnToTitle">
+            Return to Title
+        </MudButton>
+    </DialogActions>
+</MudDialog>
 
 @code {
-    
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; }
+    [Parameter] public string Winner { get; set; }
+    [Parameter] public int Turns { get; set; }
+    [Inject] private NavigationManager Navigation { get; set; }
+
+    private void Rematch()
+    {
+        MudDialog.Close(DialogResult.Ok("Rematch"));
+    }
+
+    private void ReturnToTitle()
+    {
+        Navigation.NavigateTo("/");
+        MudDialog.Close();
+    }
 }

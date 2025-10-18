@@ -1,6 +1,470 @@
-@page "/Game"
-<h3>Game</h3>
+@page "/game"
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="d-flex flex-column align-center justify-center" Style="min-height: 100vh;">
+    <MudText Typo="Typo.h3" Class="mb-4">Battleship PVE</MudText>
+    
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudText Typo="Typo.h6">Turn: @turnCount</MudText>
+    </MudPaper>
+
+    <MudGrid Justify="Justify.Center" Spacing="4">
+        <!-- Player Side -->
+        <MudItem xs="12" md="5">
+            <MudPaper Class="pa-4" Elevation="3">
+                <MudText Typo="Typo.h5" Align="Align.Center" Class="mb-4">Your Board</MudText>
+                <div style="display: grid; grid-template-columns: repeat(7, 50px); gap: 2px; justify-content: center;">
+                    @for (int i = 0; i < 7; i++)
+                    {
+                        for (int j = 0; j < 7; j++)
+                        {
+                            var row = i;
+                            var col = j;
+                            var cell = playerGrid[row, col];
+                            <MudButton Variant="Variant.Filled" 
+                                      Style="@GetCellStyle(cell, true)"
+                                      Size="Size.Small"
+                                      Class="pa-0"
+                                      Disabled="true">
+                                @if (cell.IsHit)
+                                {
+                                    <MudText Typo="Typo.h6" Color="Color.Error">X</MudText>
+                                }
+                            </MudButton>
+                        }
+                    }
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <!-- Computer Side -->
+        <MudItem xs="12" md="5">
+            <MudPaper Class="pa-4" Elevation="3">
+                <MudText Typo="Typo.h5" Align="Align.Center" Class="mb-4">Anlq Board</MudText>
+                <div style="display: grid; grid-template-columns: repeat(7, 50px); gap: 2px; justify-content: center;">
+                    @for (int i = 0; i < 7; i++)
+                    {
+                        for (int j = 0; j < 7; j++)
+                        {
+                            var row = i;
+                            var col = j;
+                            var cell = computerGrid[row, col];
+                            <MudButton Variant="Variant.Filled" 
+                                      Style="@GetCellStyle(cell, false)"
+                                      Size="Size.Small"
+                                      Class="pa-0"
+                                      OnClick="() => PlayerShoot(row, col)"
+                                      Disabled="@(!isPlaying || !isPlayerTurn || cell.IsHit)">
+                                @if (cell.IsHit)
+                                {
+                                    <MudText Typo="Typo.h6" Color="Color.Error">X</MudText>
+                                }
+                            </MudButton>
+                        }
+                    }
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    @if (!isReady)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Class="mt-4" OnClick="Ready">
+            Ready
+        </MudButton>
+    }
+    else if (!isPlaying)
+    {
+        <div class="d-flex gap-2 mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Large" OnClick="RandomizeShips">
+                Randomize Ships
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Large" OnClick="StartGame">
+                Play
+            </MudButton>
+        </div>
+    }
+</MudContainer>
 
 @code {
+    private class Cell
+    {
+        public bool HasShip { get; set; }
+        public bool IsHit { get; set; }
+        public int ShipId { get; set; }
+    }
+
+    private class Ship
+    {
+        public int Id { get; set; }
+        public int Size { get; set; }
+        public int HitCount { get; set; }
+        public bool IsSunk => HitCount >= Size;
+    }
+
+    private Cell[,] playerGrid = new Cell[7, 7];
+    private Cell[,] computerGrid = new Cell[7, 7];
+    private List<Ship> playerShips = new();
+    private List<Ship> computerShips = new();
+    private bool isReady = false;
+    private bool isPlaying = false;
+    private bool isPlayerTurn = true;
+    private int turnCount = 0;
+    private Random random = new Random();
     
+    // AI tracking
+    private List<(int row, int col)> aiHits = new();
+    private List<(int row, int col)> aiPriorityTargets = new();
+
+    [Inject] private IDialogService DialogService { get; set; }
+
+    protected override void OnInitialized()
+    {
+        InitializeGrids();
+    }
+
+    private void InitializeGrids()
+    {
+        for (int i = 0; i < 7; i++)
+        {
+            for (int j = 0; j < 7; j++)
+            {
+                playerGrid[i, j] = new Cell();
+                computerGrid[i, j] = new Cell();
+            }
+        }
+    }
+
+    private void Ready()
+    {
+        isReady = true;
+        PlaceShipsRandomly(playerGrid, playerShips);
+        PlaceShipsRandomly(computerGrid, computerShips);
+    }
+
+    private void RandomizeShips()
+    {
+        ClearShips(playerGrid, playerShips);
+        PlaceShipsRandomly(playerGrid, playerShips);
+    }
+
+    private void ClearShips(Cell[,] grid, List<Ship> ships)
+    {
+        ships.Clear();
+        for (int i = 0; i < 7; i++)
+        {
+            for (int j = 0; j < 7; j++)
+            {
+                grid[i, j].HasShip = false;
+                grid[i, j].ShipId = 0;
+            }
+        }
+    }
+
+    private void PlaceShipsRandomly(Cell[,] grid, List<Ship> ships)
+    {
+        ships.Clear();
+        int[] shipSizes = { 3, 2, 1 };
+        
+        for (int i = 0; i < shipSizes.Length; i++)
+        {
+            int size = shipSizes[i];
+            var ship = new Ship { Id = i + 1, Size = size };
+            bool placed = false;
+            
+            while (!placed)
+            {
+                int row = random.Next(7);
+                int col = random.Next(7);
+                bool horizontal = random.Next(2) == 0;
+                
+                if (CanPlaceShip(grid, row, col, size, horizontal))
+                {
+                    PlaceShip(grid, row, col, size, horizontal, ship.Id);
+                    placed = true;
+                }
+            }
+            
+            ships.Add(ship);
+        }
+    }
+
+    private bool CanPlaceShip(Cell[,] grid, int row, int col, int size, bool horizontal)
+    {
+        if (horizontal)
+        {
+            if (col + size > 7) return false;
+            for (int i = 0; i < size; i++)
+            {
+                if (grid[row, col + i].HasShip) return false;
+            }
+        }
+        else
+        {
+            if (row + size > 7) return false;
+            for (int i = 0; i < size; i++)
+            {
+                if (grid[row + i, col].HasShip) return false;
+            }
+        }
+        return true;
+    }
+
+    private void PlaceShip(Cell[,] grid, int row, int col, int size, bool horizontal, int shipId)
+    {
+        if (horizontal)
+        {
+            for (int i = 0; i < size; i++)
+            {
+                grid[row, col + i].HasShip = true;
+                grid[row, col + i].ShipId = shipId;
+            }
+        }
+        else
+        {
+            for (int i = 0; i < size; i++)
+            {
+                grid[row + i, col].HasShip = true;
+                grid[row + i, col].ShipId = shipId;
+            }
+        }
+    }
+
+    private void StartGame()
+    {
+        isPlaying = true;
+        isPlayerTurn = true;
+        turnCount = 0;
+    }
+
+    private async Task PlayerShoot(int row, int col)
+    {
+        if (!isPlayerTurn || !isPlaying) return;
+        
+        var cell = computerGrid[row, col];
+        if (cell.IsHit) return;
+        
+        cell.IsHit = true;
+        turnCount++;
+        
+        if (cell.HasShip)
+        {
+            var ship = computerShips.First(s => s.Id == cell.ShipId);
+            ship.HitCount++;
+        }
+        
+        if (CheckWin(computerShips))
+        {
+            await ShowGameOver("Player");
+            return;
+        }
+        
+        isPlayerTurn = false;
+        StateHasChanged();
+        await Task.Delay(500);
+        await ComputerTurn();
+    }
+
+    private async Task ComputerTurn()
+    {
+        (int row, int col) = GetComputerTarget();
+        
+        var cell = playerGrid[row, col];
+        cell.IsHit = true;
+        
+        if (cell.HasShip)
+        {
+            aiHits.Add((row, col));
+            UpdateAIPriorities(row, col);
+            
+            var ship = playerShips.First(s => s.Id == cell.ShipId);
+            ship.HitCount++;
+            
+            if (ship.IsSunk)
+            {
+                CleanupSunkShipTargets(ship.Id);
+            }
+        }
+        
+        if (CheckWin(playerShips))
+        {
+            await ShowGameOver("Anlq");
+            return;
+        }
+        
+        isPlayerTurn = true;
+        StateHasChanged();
+    }
+
+    private (int, int) GetComputerTarget()
+    {
+        // Priority 1: Adjacent cells to hits
+        if (aiPriorityTargets.Count > 0)
+        {
+            var target = aiPriorityTargets[0];
+            aiPriorityTargets.RemoveAt(0);
+            return target;
+        }
+        
+        // Priority 2: Random cell
+        List<(int, int)> availableCells = new();
+        for (int i = 0; i < 7; i++)
+        {
+            for (int j = 0; j < 7; j++)
+            {
+                if (!playerGrid[i, j].IsHit)
+                {
+                    availableCells.Add((i, j));
+                }
+            }
+        }
+        
+        if (availableCells.Count > 0)
+        {
+            return availableCells[random.Next(availableCells.Count)];
+        }
+        
+        return (0, 0);
+    }
+
+    private void UpdateAIPriorities(int row, int col)
+    {
+        // Check for adjacent hits to determine ship orientation
+        var adjacentHits = GetAdjacentHits(row, col);
+        
+        if (adjacentHits.Count > 0)
+        {
+            // Ship orientation detected
+            var (hitRow, hitCol) = adjacentHits[0];
+            
+            if (hitRow == row) // Horizontal ship
+            {
+                // Add cells on the same row
+                AddPriorityIfValid(row, col - 1);
+                AddPriorityIfValid(row, col + 1);
+            }
+            else // Vertical ship
+            {
+                // Add cells on the same column
+                AddPriorityIfValid(row - 1, col);
+                AddPriorityIfValid(row + 1, col);
+            }
+        }
+        else
+        {
+            // No orientation yet, add all adjacent cells
+            AddPriorityIfValid(row - 1, col);
+            AddPriorityIfValid(row + 1, col);
+            AddPriorityIfValid(row, col - 1);
+            AddPriorityIfValid(row, col + 1);
+        }
+    }
+
+    private List<(int, int)> GetAdjacentHits(int row, int col)
+    {
+        var adjacent = new List<(int, int)>();
+        var directions = new[] { (-1, 0), (1, 0), (0, -1), (0, 1) };
+        
+        foreach (var (dr, dc) in directions)
+        {
+            int newRow = row + dr;
+            int newCol = col + dc;
+            
+            if (IsValidCell(newRow, newCol) && aiHits.Contains((newRow, newCol)))
+            {
+                adjacent.Add((newRow, newCol));
+            }
+        }
+        
+        return adjacent;
+    }
+
+    private void AddPriorityIfValid(int row, int col)
+    {
+        if (IsValidCell(row, col) && !playerGrid[row, col].IsHit && !aiPriorityTargets.Contains((row, col)))
+        {
+            aiPriorityTargets.Insert(0, (row, col));
+        }
+    }
+
+    private bool IsValidCell(int row, int col)
+    {
+        return row >= 0 && row < 7 && col >= 0 && col < 7;
+    }
+
+    private void CleanupSunkShipTargets(int shipId)
+    {
+        // Remove priority targets that were for this ship
+        var shipHits = aiHits.Where(h => playerGrid[h.row, h.col].ShipId == shipId).ToList();
+        
+        // Remove adjacent cells from priority if ship is sunk
+        foreach (var (row, col) in shipHits)
+        {
+            aiPriorityTargets.RemoveAll(t => 
+                Math.Abs(t.row - row) + Math.Abs(t.col - col) == 1);
+        }
+    }
+
+    private bool CheckWin(List<Ship> ships)
+    {
+        return ships.All(s => s.IsSunk);
+    }
+
+    private async Task ShowGameOver(string winner)
+    {
+        isPlaying = false;
+        
+        var parameters = new DialogParameters
+        {
+            ["Winner"] = winner,
+            ["Turns"] = turnCount
+        };
+        
+        var dialog = await DialogService.ShowAsync<GameOverDialog>("Game Over", parameters);
+        var result = await dialog.Result;
+        
+        if (!result.Canceled)
+        {
+            if ((string)result.Data == "Rematch")
+            {
+                ResetGame();
+            }
+        }
+    }
+
+    private void ResetGame()
+    {
+        isReady = false;
+        isPlaying = false;
+        isPlayerTurn = true;
+        turnCount = 0;
+        aiHits.Clear();
+        aiPriorityTargets.Clear();
+        InitializeGrids();
+        playerShips.Clear();
+        computerShips.Clear();
+    }
+
+    private string GetCellStyle(Cell cell, bool isPlayer)
+    {
+        var baseStyle = "width: 50px; height: 50px; min-width: 50px; border-radius: 4px;";
+        
+        if (cell.IsHit)
+        {
+            if (cell.HasShip)
+            {
+                return baseStyle + " background-color: #f44336 !important;"; // Red for hit
+            }
+            else
+            {
+                return baseStyle + " background-color: #ffd54f !important;"; // Yellow for miss
+            }
+        }
+        
+        if (isPlayer && cell.HasShip)
+        {
+            return baseStyle + " background-color: #2196f3 !important;"; // Blue for player ships
+        }
+        
+        return baseStyle + " background-color: #e0e0e0;"; // Gray for empty
+    }
 }

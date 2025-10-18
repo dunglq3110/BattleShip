@@ -1,7 +1,169 @@
 ﻿@page "/"
+@inject NavigationManager Navigation
 
-<PageTitle>Home</PageTitle>
+<MudContainer MaxWidth="MaxWidth.Medium" Class="d-flex flex-column align-center justify-center" Style="min-height: 100vh;">
+    <MudText Typo="Typo.h1" Align="Align.Center" Class="mb-8" Style="font-weight: bold; font-size: 4rem;">
+        Battle Ship
+    </MudText>
 
-<h1>Hello, world!</h1>
+    <MudStack Spacing="4" Style="width: 300px;">
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   FullWidth="true" 
+                   Size="Size.Large"
+                   OnClick="NavigateToPve">
+            PVE
+        </MudButton>
 
-Welcome to your new app.
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Secondary" 
+                   FullWidth="true" 
+                   Size="Size.Large"
+                   OnClick="OpenNewRoomDialog">
+            New Room
+        </MudButton>
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Tertiary" 
+                   FullWidth="true" 
+                   Size="Size.Large"
+                   OnClick="OpenJoinRoomDialog">
+            Join Room
+        </MudButton>
+    </MudStack>
+</MudContainer>
+
+<!-- New Room Dialog -->
+<MudDialog @bind-Visible="_showNewRoomDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Create New Room</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_newRoomName" 
+                      Label="Room Name" 
+                      Variant="Variant.Outlined" 
+                      Margin="Margin.Dense"
+                      Class="mb-4" />
+        
+        <MudTextField Value="@_newRoomId" 
+                      Label="Room ID" 
+                      Variant="Variant.Outlined" 
+                      Margin="Margin.Dense"
+                      ReadOnly="true"
+                      Class="mb-4" />
+        
+        <MudTextField @bind-Value="_newRoomPassword" 
+                      Label="Password (Optional)" 
+                      Variant="Variant.Outlined" 
+                      Margin="Margin.Dense"
+                      InputType="InputType.Password" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseNewRoomDialog" Color="Color.Default">Cancel</MudButton>
+        <MudButton OnClick="CreateRoom" Color="Color.Primary" Variant="Variant.Filled">Create</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Join Room Dialog -->
+<MudDialog @bind-Visible="_showJoinRoomDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Join Room</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_joinRoomId" 
+                      Label="Room ID" 
+                      Variant="Variant.Outlined" 
+                      Margin="Margin.Dense"
+                      Class="mb-4" />
+        
+        <MudTextField @bind-Value="_joinRoomPassword" 
+                      Label="Password" 
+                      Variant="Variant.Outlined" 
+                      Margin="Margin.Dense"
+                      InputType="InputType.Password" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseJoinRoomDialog" Color="Color.Default">Cancel</MudButton>
+        <MudButton OnClick="JoinRoom" Color="Color.Primary" Variant="Variant.Filled">Join</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _showNewRoomDialog = false;
+    private bool _showJoinRoomDialog = false;
+
+    private string _newRoomName = "";
+    private string _newRoomId = "";
+    private string _newRoomPassword = "";
+
+    private string _joinRoomId = "";
+    private string _joinRoomPassword = "";
+
+    private readonly DialogOptions _dialogOptions = new DialogOptions
+    {
+        MaxWidth = MaxWidth.Small,
+        FullWidth = true,
+        CloseButton = true,
+        // DisableBackdropClick = false
+    };
+
+    protected override void OnInitialized()
+    {
+        GenerateNewRoomId();
+    }
+
+    private void NavigateToPve()
+    {
+        Navigation.NavigateTo("/game");
+    }
+
+    private void OpenNewRoomDialog()
+    {
+        GenerateNewRoomId();
+        _newRoomName = "";
+        _newRoomPassword = "";
+        _showNewRoomDialog = true;
+    }
+
+    private void CloseNewRoomDialog()
+    {
+        _showNewRoomDialog = false;
+    }
+
+    private void CreateRoom()
+    {
+        Console.WriteLine($"Creating room: {_newRoomName} with ID: {_newRoomId}");
+        _showNewRoomDialog = false;
+    }
+
+    private void OpenJoinRoomDialog()
+    {
+        _joinRoomId = "";
+        _joinRoomPassword = "";
+        _showJoinRoomDialog = true;
+    }
+
+    private void CloseJoinRoomDialog()
+    {
+        _showJoinRoomDialog = false;
+    }
+
+    private void JoinRoom()
+    {
+        // Add your room joining logic here
+        // For example: validate room ID and password, then join
+        
+        Console.WriteLine($"Joining room: {_joinRoomId}");
+        
+        // Example navigation (adjust based on your routing):
+        // Navigation.NavigateTo($"/room/{joinRoomId}");
+        
+        _showJoinRoomDialog = false;
+    }
+
+    private void GenerateNewRoomId()
+    {
+        // Generate a random 6-character room ID
+        _newRoomId = Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper();
+    }
+}
